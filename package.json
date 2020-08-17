@@ -1,0 +1,39 @@
+{
+  "name": "fe-monitor-report",
+  "version": "1.0.0",
+  "author": "xudeming",
+  "email": "xudeming208@126.com",
+  "description": "前端监控上报系统，能够统计页面性能、ajax监控及页面错误，并能进行上报",
+  "main": "lib/index.js",
+  "keywords": [
+    "monitor",
+    "performance",
+    "fe-monitor",
+    "fe-monitor-report",
+    "error",
+    "report",
+    "ajax",
+    "log",
+    "supervisor"
+  ],
+  "scripts": {
+    "build": "babel src -d lib"
+  },
+  "engines": {
+    "node": ">=6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xudeming208/fe-monitor-report"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "babel-runtime": "6.26.0"
+  },
+  "devDependencies": {
+    "babel-cli": "6.26.0",
+    "babel-core": "6.26.0",
+    "babel-plugin-transform-runtime": "6.23.0",
+    "babel-preset-env": "1.6.1"
+  }
+}
