@@ -5,6 +5,8 @@
 }(this, () => {
     'use strict'
 
+    const global = this;
+
     // 上报的数据
     let reportResult = {
         reportUrl: '',
@@ -95,14 +97,14 @@
             // 大小设置，单位字节B。资源大小超过此值的请求将上报，这里是300K
             this.maxSize = config.maxSize || 300 * 1024;
             // 接口返回的code的字段名称
-            this.ajaxSuccessField = config.ajaxSuccessField || 'errno';
+            this.ajaxSuccessField = config.ajaxSuccessField || '';
             // 某些公司接口http code一直返回200，而在response中提示错误。所以这里可以配置ajaxSuccessField和ajaxSuccessCode，如果response[ajaxSuccessField]不是ajaxSuccessCode配置的，这些接口将进行上报，如：
             //{
             //  "errno": 404,
             //  "errmsg": "接口不存在",
             //  "data": [],
             // }
-            this.ajaxSuccessCode = config.ajaxSuccessCode || 200;
+            this.ajaxSuccessCode = config.ajaxSuccessCode || 0;
 
             // 用户自定义的其他的需要上报的数据
             this.customData = config.customData || {};
@@ -129,18 +131,25 @@
             // XMLHttpRequest劫持
             let originOpen = XMLHttpRequest.prototype.open;
             let originSend = XMLHttpRequest.prototype.send;
+            let originSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
             XMLHttpRequest.prototype.open = function (method, url, async, user, password) {
-                // 获取请求的相关参数
+                // 获取请求的相关参数。这里的this代表的是XMLHttpRequest构造函数的实例对象，不是global
                 this.ajaxObj = {
+                    requestApi: 'XMLHttpRequest',
                     method,
                     url: url.match(/http(s)?:\/\//) ? url : (location.origin + url),
                     async,
                     user,
-                    password
+                    password,
+                    requestHeaders: {},
                 };
 
                 // 执行原来的open
                 originOpen.call(this, method, url, async, user, password);
+            }
+            XMLHttpRequest.prototype.setRequestHeader = function (header, value) {
+                this.ajaxObj.requestHeaders[header] = value;
+                originSetRequestHeader.call(this, header, value);
             }
             XMLHttpRequest.prototype.send = function (data) {
                 // 获取请求的数据
@@ -165,27 +174,28 @@
 
                 // abort
                 this.addEventListener('abort', e => {
-                    this.ajaxObj.headers = formatHeaders(this.getAllResponseHeaders());
+                    this.ajaxObj.responseHeaders = formatHeaders(this.getAllResponseHeaders());
                     this.ajaxObj.httpCode = this.status;
                     this.ajaxObj.errMsg = '接口abort';
-                    reportResult.ajax.push(this.ajaxObj);
+                    reportResult.ajax.push(JSON.parse(JSON.stringify(this.ajaxObj)));
                 }, false);
                 // error
                 this.addEventListener('error', e => {
-                    this.ajaxObj.headers = formatHeaders(this.getAllResponseHeaders());
+                    this.ajaxObj.responseHeaders = formatHeaders(this.getAllResponseHeaders());
                     this.ajaxObj.httpCode = this.status;
                     this.ajaxObj.errMsg = '接口error';
-                    reportResult.ajax.push(this.ajaxObj);
+                    reportResult.ajax.push(JSON.parse(JSON.stringify(this.ajaxObj)));
                 }, false);
+                // timeout
                 this.addEventListener('timeout', e => {
-                    this.ajaxObj.headers = formatHeaders(this.getAllResponseHeaders());
+                    this.ajaxObj.responseHeaders = formatHeaders(this.getAllResponseHeaders());
                     this.ajaxObj.httpCode = this.status;
                     this.ajaxObj.errMsg = '接口timeout';
-                    reportResult.ajax.push(this.ajaxObj);
+                    reportResult.ajax.push(JSON.parse(JSON.stringify(this.ajaxObj)));
                 }, false);
                 // load
                 this.addEventListener('load', e => {
-                    this.ajaxObj.headers = formatHeaders(this.getAllResponseHeaders());
+                    this.ajaxObj.responseHeaders = formatHeaders(this.getAllResponseHeaders());
                     this.ajaxObj.httpCode = this.status;
                     if (this.readyState == XMLHttpRequest.DONE) {
                         // 成功时
@@ -204,7 +214,21 @@
                                     'canNotParse': this.responseText.toString()
                                 };
                                 console.warn(
-                                    `response数据为：${this.responseText}，不是正确的JSON格式，无法解析`);
+                                    `${this.ajaxObj.url} => 请求成功，但response数据不是正确的JSON格式，无法解析，response为：${this.responseText}`
+                                );
+                            }
+
+                            // 将超时的和返回数据不对的接口进行上报
+                            if (duration > self.timeout || (self.ajaxSuccessField && response[
+                                        self.ajaxSuccessField] !=
+                                    self.ajaxSuccessCode)) {
+                                // navigator.sendBeacon只能发送少量数据，所以这里限制了一下
+                                if (JSON.stringify(response).length > maxResponseLength) {
+                                    this.ajaxObj.response =
+                                        `response数据太大，不进行上报，如有需要请查看业务代码确认response`;
+                                } else {
+                                    this.ajaxObj.response = response || {};
+                                }
                             }
 
 
@@ -212,6 +236,7 @@
                             if (duration > self.timeout) {
                                 this.ajaxObj.errMsg =
                                     `接口成功返回，但是花费了${duration}ms，时间超过了设置的timeout：${self.timeout}ms`;
+                                reportResult.ajax.push(JSON.parse(JSON.stringify(this.ajaxObj)));
                             }
 
                             // 某些公司接口http code一直返回200，而在response中提示错误。所以这里可以配置ajaxSuccessField和ajaxSuccessCode，如果response[ajaxSuccessField]不是ajaxSuccessCode配置的，这些接口将进行上报，如：
@@ -220,29 +245,18 @@
                             //  "errmsg": "接口不存在",
                             //  "data": [],
                             // }
-                            if (response[self.ajaxSuccessField] != self.ajaxSuccessCode) {
+                            if (self.ajaxSuccessField && response[self.ajaxSuccessField] !=
+                                self.ajaxSuccessCode) {
                                 this.ajaxObj.errMsg =
                                     `接口成功返回，但是不是正常的状态，其response.${self.ajaxSuccessField}不是${self.ajaxSuccessCode}`;
-                            }
-
-                            // 将超时的和返回数据不对的接口进行上报
-                            if (duration > self.timeout || response[self.ajaxSuccessField] !=
-                                self.ajaxSuccessCode) {
-                                // navigator.sendBeacon只能发送少量数据，所以这里限制了一下
-                                if (JSON.stringify(response).length > maxResponseLength) {
-                                    this.ajaxObj.response =
-                                        `response数据太大，不进行上报，如有需要请查看业务代码确认response`;
-                                } else {
-                                    this.ajaxObj.response = response || {};
-                                }
-                                reportResult.ajax.push(this.ajaxObj);
+                                reportResult.ajax.push(JSON.parse(JSON.stringify(this.ajaxObj)));
                             }
                         }
                         // 失败时
                         else {
                             this.ajaxObj.errMsg = this.statusText ||
                                 `接口成功返回，但是http code为${this.status}，不是200-400`;
-                            reportResult.ajax.push(this.ajaxObj);
+                            reportResult.ajax.push(JSON.parse(JSON.stringify(this.ajaxObj)));
                         }
                     }
                 }, false);
@@ -253,7 +267,116 @@
 
             // 劫持fetch请求
             // 这种功能以前是使用 XMLHttpRequest 实现的。Fetch 提供了一个更理想的替代方案，可以很容易地被其他技术使用，例如  Service Workers
+            let originFetch = global.fetch;
+            global.fetch = (input, init = {}) => {
+                let ajaxObj = {
+                    requestApi: 'fetch',
+                    method: init.method || 'get',
+                    url: input,
+                    async: true,
+                    requestHeaders: init.headers,
+                    params: init.body,
+                    cookie: formatCookie(document.cookie),
+                    response: {},
+                    responseHeaders: {},
+                    httpCode: '',
+                    errMsg: ''
+                };
 
+                let beginTime = +new Date();
+
+                // 利用AbortController终止fetch请求
+                // let controller = '';
+                // if(global.AbortController) {
+                //     controller = new global.AbortController();
+                //     let signal = controller.signal;
+                //     init.signal = signal;
+                // }
+
+                return new Promise((resolve, reject) => {
+                    let originFetchRes = originFetch(input, init);
+                    originFetchRes.then(async res => {
+                        // 获取responseHeaders。不能获取所有的headers
+                        // 参考：https://stackoverflow.com/questions/43344819/reading-response-headers-with-fetch-api
+                        res.headers.forEach((value, key) => {
+                            ajaxObj.responseHeaders[key] = value;
+                        });
+
+                        // 克隆Response对象。否则劫持时，获取了responseText，用户使用fetch时，会报错：body stream already read。
+                        // 参考：https://developer.mozilla.org/zh-CN/docs/Web/API/Response
+                        let resCopy = res.clone();
+
+                        // timeout
+                        if (+new Date() - beginTime > self.timeout) {
+                            // controller && controller.abort();
+                            ajaxObj.errMsg =
+                                `接口返回时间超过了设置的timeout：${self.timeout}ms`;
+                            reportResult.ajax.push(JSON.parse(JSON.stringify(
+                                ajaxObj)));
+                        }
+
+                        // httpCode
+                        ajaxObj.httpCode = resCopy.status;
+
+                        // responseText
+                        // 可用的方法有：Body.arrayBuffer()、Body.blob()、Body.formData()、Body.json()、Body.text()
+                        // 这里简单利用text，后面通过try catch
+                        let responseText = await resCopy.text();
+
+                        // 获取ajaxObj.response
+                        try {
+                            responseText = responseText ? JSON.parse(responseText) :
+                                {};
+                            ajaxObj.response = responseText;
+                        } catch (err) {
+                            ajaxObj.response = {
+                                'canNotParse': responseText
+                            };
+                            console.warn(
+                                `${ajaxObj.url} => 请求成功，但response数据不是正确的JSON格式，无法解析，response为：${responseText}`
+                            );
+                        }
+
+                        // navigator.sendBeacon只能发送少量数据，所以这里限制了一下
+                        if (JSON.stringify(ajaxObj.response).length >
+                            maxResponseLength) {
+                            ajaxObj.response =
+                                `response数据太大，不进行上报，如有需要请查看业务代码确认response`;
+                        }
+
+                        // 当接收到一个代表错误的 HTTP 状态码时，从 fetch() 返回的 Promise 不会被标记为 reject， 即使响应的HTTP状态码是 404 或 500。相反，它会将 Promise 状态标记为 resolve （但是会将 resolve的返回值的 ok 属性设置为 false ），仅当网络故障时或请求被阻止时，才会标记为 reject
+                        if (resCopy.ok) {
+                            // 某些公司接口http code一直返回200，而在response中提示错误。所以这里可以配置ajaxSuccessField和ajaxSuccessCode，如果response[ajaxSuccessField]不是ajaxSuccessCode配置的，这些接口将进行上报，如：
+                            // {
+                            //  "errno": 25005,
+                            //  "errmsg": "接口不存在",
+                            //  "data": [],
+                            // }
+                            if (self.ajaxSuccessField && responseText[self.ajaxSuccessField] !=
+                                self.ajaxSuccessCode) {
+                                ajaxObj.errMsg =
+                                    `接口成功返回，但是不是正常的状态，其response.${self.ajaxSuccessField}不是${self.ajaxSuccessCode}`;
+                                reportResult.ajax.push(JSON.parse(JSON.stringify(
+                                    ajaxObj)));
+                            }
+                        } else {
+                            ajaxObj.errMsg =
+                                `接口返回成功，但是其http code为${ajaxObj.httpCode}，不是正确的http code`;
+                            reportResult.ajax.push(JSON.parse(JSON.stringify(
+                                ajaxObj)));
+                        }
+
+                        return resolve(res);
+                    });
+                    originFetchRes.catch(err => {
+                        ajaxObj.response = err;
+                        ajaxObj.httpCode = 'Failed';
+                        ajaxObj.errMsg = `接口error`;
+                        reportResult.ajax.push(JSON.parse(JSON.stringify(ajaxObj)));
+                        return reject(err);
+                    })
+                })
+            }
 
 
             // unloadCbk
