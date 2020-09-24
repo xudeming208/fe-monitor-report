@@ -46,6 +46,13 @@
         ajax: [],
 
         // JS错误
+        // window.addEventListener(‘error’)  通过事件events对象和target属性，获取到触发事件名称及DOM
+        // window.addEventListener(“unhandledrejection”)  未捕获的错误，比如promise错误
+        // document.addEventListener(‘click’)
+        // 对console.error进行重写
+        // Vue.config.errorHandler
+        // Vue.config.warnHandler
+        // 增加SourceMap，发现真正的错误位置，而不是编译及压缩后的
 
     };
 
@@ -172,6 +179,8 @@
                 // response
                 this.ajaxObj.response = {};
 
+
+                // 实际场景，不应该是unload时上报，而是每个重要的异常发生时都应该立即上报（比如发短信、打电话等），比如ajax发生abort、error、timeout时，就应该立即上报。其他的不是很重要的异常，可以后面统一上报
                 // abort
                 this.addEventListener('abort', e => {
                     this.ajaxObj.responseHeaders = formatHeaders(this.getAllResponseHeaders());
@@ -420,11 +429,16 @@
 
 
                 // 上报
+                // 一次性上传批量数据时，必然遇到数据量大，浪费流量，或者传输慢等情况，网络不好的状态下，可能导致上报失败。因此，在上报之前进行数据压缩也是一种方案。
+                // 对于合并上报这种情况，一次的数据量可能要十几k，对于日 pv 大的站点来说，产生的流量还是很可观的。所以有必要对数据进行压缩上报。lz-string是一个非常优秀的字符串压缩类库，兼容性好，代码量少，压缩比高，压缩时间短，压缩率达到惊人的60%。但它基于LZ78压缩，如果后端不支持解压，可选择gzip压缩，一般而言后端会默认预装gzip，因此，选择gzip压缩数据也可以，工具包pako中自带了gzip压缩，可以尝试使用。
+
+                // 实际场景，不应该是unload时上报，而是每个重要的异常发生时都应该立即上报，比如ajax发生abort、error、timeout时，就应该立即上报（比如发短信、打电话等）。其他的不是很重要的异常，可以后面统一上报
                 reportResult.reportTime = new Date().toLocaleString();
                 try {
+                    reportResult = JSON.stringify(reportResult, null, '\t');
+
                     // navigator.sendBeacon只能发送少量数据，超过限制后将返回false
-                    let isReportSuccess = navigator.sendBeacon(this.reportUrl, JSON.stringify(
-                        reportResult, null, '\t'));
+                    let isReportSuccess = navigator.sendBeacon(this.reportUrl, reportResult);
                     !isReportSuccess && console.error('上报失败，请检查上报数据大小');
                 } catch (err) {
                     console.error('上报出错');
