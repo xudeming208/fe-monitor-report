@@ -21,7 +21,7 @@
         reportTime: '',
         userAgent: navigator.userAgent,
 
-        // 性能相关的数据
+        // 性能相关的数据。如果性能数据要实时上报的话，可以利用Performance Observer，参考：https://developer.mozilla.org/zh-CN/docs/Web/API/PerformanceObserver/PerformanceObserver
         performance: {
             // 其他时间
             common: {
@@ -47,7 +47,12 @@
 
         // JS错误
         // window.addEventListener(‘error’)  通过事件events对象和target属性，获取到触发事件名称及DOM
-        // window.addEventListener(“unhandledrejection”)  未捕获的错误，比如promise错误
+
+        // 当 Promise 被 reject 且没有 reject 处理器的时候，会触发 unhandledrejection 事件。
+        // 当 Promise 被 reject 且有 reject 处理器的时候，会触发 rejectionhandled 事件。
+        // window.addEventListener(“unhandledrejection”)
+        // window.addEventListener(rejectionhandled)
+
         // document.addEventListener(‘click’)
         // 对console.error进行重写
         // Vue.config.errorHandler
@@ -283,9 +288,9 @@
                     method: init.method || 'get',
                     url: input,
                     async: true,
-                    requestHeaders: init.headers,
-                    params: init.body,
-                    cookie: formatCookie(document.cookie),
+                    requestHeaders: init.headers || {},
+                    params: init.body || {},
+                    cookie: formatCookie(document.cookie) || {},
                     response: {},
                     responseHeaders: {},
                     httpCode: '',
