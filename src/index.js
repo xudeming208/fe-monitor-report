@@ -116,6 +116,9 @@
             //  "errmsg": "接口不存在",
             //  "data": [],
             // }
+            // 比如可设置
+            // ajaxSuccessField: 'errno',
+            // ajaxSuccessCode: 10000,
             this.ajaxSuccessCode = config.ajaxSuccessCode || 0;
 
             // 用户自定义的其他的需要上报的数据
@@ -233,6 +236,9 @@
                             }
 
                             // 将超时的和返回数据不对的接口进行上报
+                            // 比如可设置
+                            // ajaxSuccessField: 'errno',
+                            // ajaxSuccessCode: 10000,
                             if (duration > self.timeout || (self.ajaxSuccessField && response[
                                         self.ajaxSuccessField] !=
                                     self.ajaxSuccessCode)) {
@@ -259,6 +265,9 @@
                             //  "errmsg": "接口不存在",
                             //  "data": [],
                             // }
+                            // 比如可设置
+                            // ajaxSuccessField: 'errno',
+                            // ajaxSuccessCode: 10000,
                             if (self.ajaxSuccessField && response[self.ajaxSuccessField] !=
                                 self.ajaxSuccessCode) {
                                 this.ajaxObj.errMsg =
@@ -366,6 +375,9 @@
                             //  "errmsg": "接口不存在",
                             //  "data": [],
                             // }
+                            // 比如可设置
+                            // ajaxSuccessField: 'errno',
+                            // ajaxSuccessCode: 10000,
                             if (self.ajaxSuccessField && responseText[self.ajaxSuccessField] !=
                                 self.ajaxSuccessCode) {
                                 ajaxObj.errMsg =

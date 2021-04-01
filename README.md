@@ -46,6 +46,9 @@ const monitor = new Monitor({
     //  "errmsg": "接口不存在",
     //  "data": [],
     // }
+    // 比如可设置
+    // ajaxSuccessField: 'errno',
+    // ajaxSuccessCode: 10000,
     ajaxSuccessCode: 0,
 
     // 用户自定义的其他的需要上报的数据
