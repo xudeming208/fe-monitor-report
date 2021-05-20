@@ -455,6 +455,13 @@
                     reportResult = JSON.stringify(reportResult, null, '\t');
 
                     // navigator.sendBeacon只能发送少量数据，超过限制后将返回false
+                    // 数据上报的方式参考：http://www.yunishare.cn/2021/01/web-report-methods-compare.html
+                    // 如果必须要用image的方式上报，数据又很多，可以将数据分隔，然后发送多个image请求上报数据
+
+                    // 1、数据上报一般很少采用ajax请求，因为其比较占资源，且有跨域问题，需要配置跨域
+                    // 2、数据上报，如果不考虑关闭浏览器的情况，和跳转到第三方网站(比如从a网站跳转到b网站，a网站发送的image请求会阻断)，image方式上报数据是最好的
+                    // 3、如果要考虑关闭浏览器的情况，和跳转到第三方网站，就必须采用navigator.sendBeacon上报数据。默认navigator.sendBeacon只支持post的方式，我们可以要求后端即支持post，也支持get
+                    //    当然也可以将参数拼接到navigator.sendBeacon的URL上，比如// let isReportSuccess = navigator.sendBeacon(reportUrl + '?params=' + encodeURIComponent(JSON.stringify(params)) , '');
                     let isReportSuccess = navigator.sendBeacon(this.reportUrl, reportResult);
                     !isReportSuccess && console.error('上报失败，请检查上报数据大小');
                 } catch (err) {
