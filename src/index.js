@@ -7,6 +7,8 @@
 
     const global = this;
 
+    // 数据上报时机：https://wukongdoc.tingyun.com/browser/question/
+
     // 上报的数据
     let reportResult = {
         reportUrl: '',
@@ -470,6 +472,7 @@
             }
 
             // unload监听。利用navigator.sendBeacon一个页面只需要上报一次，就算浏览器关闭后，navigator.sendBeacon也能发送消息进行上报
+            // 数据上报时机：https://wukongdoc.tingyun.com/browser/question/
             global.addEventListener('unload', unloadCbk, false);
         }
     }
