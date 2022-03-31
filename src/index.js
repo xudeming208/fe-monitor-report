@@ -413,6 +413,17 @@
             // performance.getEntries之所以放在unloadCbk里面，是因为performance.getEntries会随着页面的交互而逐渐增加，放在unloadCbk外面只能获取初始化的请求
             let unloadCbk = () => {
                 // 获取performance.common
+                
+                // 指标名称          描述                            计算方式
+                // 首字节            收到首字节的时间                  responseStart - fetchStart
+                // DOM Ready        HTML加载完成时间                 domContentLoadedEventEnd - fetchStart
+                // 页面完全加载       页面完全加载时间                  loadEventStart - fetchStart
+                // DNS查询            DNS解析耗时                      domainLookupEnd - domainLookupStart
+                // TCP连接            TCP链接耗时                      connectEnd - connectStart
+                // 请求响应             Time to First Byte(TTFB)       responseStart - requestStart
+                // 内容传输             数据传输耗时                     responseEnd - responseStart
+                // DOM解析            DOM 解析耗时                     domInteractive - responseEnd
+                // 资源加载             资源加载耗时(页面中同步加载的资源)   loadEventStart - domContentLoadedEventEnd
                 let timing = performance.timing;
                 reportResult.performance.common.dnsTime = timing.domainLookupEnd - timing.domainLookupStart +
                     ' ms';
@@ -421,9 +432,9 @@
                 reportResult.performance.common.firstPaintTime = timing.responseStart - timing.requestStart +
                     ' ms';
                 reportResult.performance.common.domReadyTime = timing.domContentLoadedEventEnd - timing
-                    .navigationStart +
+                    .fetchStart +
                     ' ms';
-                reportResult.performance.common.loadFinshedTime = timing.loadEventEnd - timing.navigationStart +
+                reportResult.performance.common.loadFinshedTime = timing.loadEventStart - timing.fetchStart +
                     ' ms';
 
                 // 获取performance.timeout和performance.maxSize
