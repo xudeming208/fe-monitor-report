@@ -8,6 +8,7 @@
     const global = this;
 
     // 数据上报时机：https://wukongdoc.tingyun.com/browser/question/
+    // https://mp.weixin.qq.com/s/lwsfTGMasiITT3khmrsfqA
 
     // 上报的数据
     let reportResult = {
